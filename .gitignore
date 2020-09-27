@@ -4,4 +4,6 @@
 venv*/
 *.pyc
 *.ipynb
+*.yml
+!config.yml
 tmp_*
