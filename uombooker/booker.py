@@ -17,6 +17,20 @@ class Booker:
                  config_path: str = 'config.yml',
                  options: Optional[Options] = None) -> None:
 
+        """Study Space Booking Class.
+
+        Parameters
+        ----------
+        location: Location
+            Determines which study space to book.
+        session: Session
+            Determines which session to book.
+        config_path: str
+            Path to .yml file holding login information.
+        options: Optional[Options]
+            Options to use in the webdriver.
+        """
+
         self.location: Location = location
         self.session: Session = session
         self.config_path: str = config_path
@@ -24,7 +38,9 @@ class Booker:
 
         self.browser: Union[WebDriver, None] = None
 
-    def __del__(self):
+    def __del__(self) -> None:
+
+        """Safely quit browser on object deletion."""
 
         if self.browser:
             self.browser.quit()
@@ -32,15 +48,25 @@ class Booker:
     @staticmethod
     def set_options() -> Options:
 
+        """Provide a set of default options."""
+
         chrome_option = Options()
         chrome_option.headless = True
 
         return chrome_option
 
     def set_browser(self) -> None:
+
+        """Instantiate a browser instance with the given options."""
+
         self.browser = webdriver.Chrome(ChromeDriverManager().install(), options=self.options)
 
     def load_config(self) -> dict:
+
+        """Load user config from .yml file."""
+
+        if not self.config_path.endswith('.yml'):
+            raise ValueError('config_path must be a .yml file.')
 
         try:
             with open(self.config_path) as fconfig:
@@ -51,6 +77,8 @@ class Booker:
         return config
 
     def book(self) -> None:
+
+        """Responsible for running the booking process."""
 
         booking_url: str = 'https://www.library.manchester.ac.uk/locations-and-opening-hours/study-spaces/booking/'
 
