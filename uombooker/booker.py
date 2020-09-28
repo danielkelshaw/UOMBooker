@@ -43,7 +43,7 @@ class Booker:
         self.ss_unknown_booking_error: bool = True
         self.ss_filepath: str = os.path.join(
             os.getcwd(),
-            f'{datetime.datetime.now().strftime("%m%d_%H%M")}_browser.png'
+            f'{datetime.datetime.now().strftime("%m%d_%H%M%S")}_browser.png'
         )
 
         self.browser: Union[WebDriver, None] = None
@@ -55,7 +55,10 @@ class Booker:
         """Safely quit browser on object deletion."""
 
         if self.browser:
-            self.browser.quit()
+            try:
+                self.browser.quit()
+            except ImportError:
+                pass
 
     @staticmethod
     def set_options() -> Options:
@@ -101,7 +104,10 @@ class Booker:
 
         booking_url: str = 'https://www.library.manchester.ac.uk/locations-and-opening-hours/study-spaces/booking/'
 
-        session_xpath: str = f'//*[@id="content"]/div/section/article/div[{self.location}]/table/tbody/tr[{self.session}]/td[4]/a'
+        weekday = datetime.datetime.today().weekday()
+        session_idx = self.session - 2 * (weekday + 1)
+
+        session_xpath: str = f'//*[@id="content"]/div/section/article/div[{self.location}]/table/tbody/tr[{session_idx}]/td[4]/a'
         confirm_xpath: str = '//*[@id="content"]/div/section/article/a'
         register_xpath: str = '//*[@id="register"]/div[5]/input'
 
