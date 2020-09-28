@@ -1,5 +1,5 @@
+import datetime
 import os
-import time
 from typing import Optional, Union
 
 import yaml
@@ -10,7 +10,7 @@ from selenium.webdriver.chrome.webdriver import WebDriver
 from webdriver_manager.chrome import ChromeDriverManager
 
 from .utils import Location, Session
-from .utils.exceptions import LoginError, AlreadyBookedError, UnknownBookingError
+from .utils.exceptions import AlreadyBookedError, LoginError, SessionExpiredError, UnknownBookingError
 
 
 class Booker:
@@ -40,10 +40,15 @@ class Booker:
         self.config_path: str = config_path
         self.options: Options = options if options is not None else self.set_options()
 
-        self.ss_filepath: str = os.path.join(os.getcwd(), f'{time.strftime("%m%d_%H%M%")}_browser.png')
         self.ss_unknown_booking_error: bool = True
+        self.ss_filepath: str = os.path.join(
+            os.getcwd(),
+            f'{datetime.datetime.now().strftime("%m%d_%H%M")}_browser.png'
+        )
 
         self.browser: Union[WebDriver, None] = None
+
+        self._check_datetime()
 
     def __del__(self) -> None:
 
@@ -86,7 +91,13 @@ class Booker:
 
     def book(self, ss_final: bool = True) -> None:
 
-        """Responsible for running the booking process."""
+        """Responsible for running the booking process.
+
+        Parameters
+        ----------
+        ss_final : bool
+            Saves screenshot of final page if True.
+        """
 
         booking_url: str = 'https://www.library.manchester.ac.uk/locations-and-opening-hours/study-spaces/booking/'
 
@@ -139,7 +150,13 @@ class Booker:
 
     def _check_login(self) -> None:
 
-        """Checks if login was successful."""
+        """Checks if login was successful.
+
+        Raises
+        ------
+        LoginError
+            Raises in the event that the username / password are incorrect.
+        """
 
         try:
             msg = self.browser.find_element_by_xpath('//div[@id="msg" and @class="errors"]')
@@ -150,7 +167,13 @@ class Booker:
 
     def _check_book_state(self) -> None:
 
-        """Checks if session has already been booked."""
+        """Checks if session has already been booked.
+
+        Raises
+        ------
+        AlreadyBookedError
+            Raises if the session has already been booked.
+        """
 
         try:
             msg = self.browser.find_element_by_xpath('//*[@id="content"]/div/section/article/h3')
@@ -164,7 +187,13 @@ class Booker:
 
     def _check_success(self) -> None:
 
-        """Checks if booking was successful."""
+        """Checks if booking was successful.
+
+        Raises
+        ------
+        UnknownBookingError
+            Raises if the page is not as expected.
+        """
 
         try:
             msg = self.browser.find_element_by_xpath('//*[@id="content"]/div/section/article/h3')
@@ -175,3 +204,42 @@ class Booker:
         else:
             if msg.text == 'Thank you, you have registered for this study space period.':
                 print('Booking Successful')
+
+    def _check_datetime(self) -> None:
+
+        """Checks if chosen session is available.
+
+        Raises
+        ------
+        SessionExpiredError
+            Raises if the chosen session is no longer bookable.
+        """
+
+        def morning_session(session: Session) -> bool:
+            return session % 2 == 1
+
+        def afternoon_session(session: Session) -> bool:
+            return session % 2 == 0
+
+        today = datetime.datetime.today()
+
+        morning_cutoff = today.replace(hour=12, minute=30, second=0, microsecond=0)
+        afternoon_cutoff = today.replace(hour=16, minute=30, second=0, microsecond=0)
+
+        # check if session is not in the past
+        am_session, pm_session = ((today.weekday() + 1) * 2 + i for i in [-1, 0])
+
+        if self.session < am_session:
+            raise SessionExpiredError('Must book for the current day / future.')
+        elif self.session > pm_session:
+            return
+
+        # session must be today - check if valid booking
+        valid = False
+        if morning_session(self.session):
+            valid = today < morning_cutoff
+        elif afternoon_session(self.session):
+            valid = today < afternoon_cutoff
+
+        if not valid:
+            raise SessionExpiredError('Selected session has already closed.')
