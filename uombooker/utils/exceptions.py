@@ -8,3 +8,7 @@ class AlreadyBookedError(Exception):
 
 class UnknownBookingError(Exception):
     pass
+
+
+class SessionExpiredError(Exception):
+    pass
