@@ -1,12 +1,16 @@
+import os
+import time
 from typing import Optional, Union
 
 import yaml
 from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.webdriver import WebDriver
 from webdriver_manager.chrome import ChromeDriverManager
 
 from .utils import Location, Session
+from .utils.exceptions import LoginError, AlreadyBookedError, UnknownBookingError
 
 
 class Booker:
@@ -36,6 +40,9 @@ class Booker:
         self.config_path: str = config_path
         self.options: Options = options if options is not None else self.set_options()
 
+        self.ss_filepath: str = os.path.join(os.getcwd(), f'{time.strftime("%m%d_%H%M%")}_browser.png')
+        self.ss_unknown_booking_error: bool = True
+
         self.browser: Union[WebDriver, None] = None
 
     def __del__(self) -> None:
@@ -52,6 +59,7 @@ class Booker:
 
         chrome_option = Options()
         chrome_option.headless = True
+        chrome_option.add_argument("--window-size=1920,1080")
 
         return chrome_option
 
@@ -76,7 +84,7 @@ class Booker:
 
         return config
 
-    def book(self) -> None:
+    def book(self, ss_final: bool = True) -> None:
 
         """Responsible for running the booking process."""
 
@@ -106,6 +114,64 @@ class Booker:
             raise e
 
         self.browser.find_element_by_name('submit').click()
+        self._check_login()
+
+        # check if event already booked
+        self._check_book_state()
+
+        # click on register button
         self.browser.find_element_by_xpath(register_xpath).click()
 
+        # check if booked successfully
+        self._check_success()
+
+        if ss_final:
+            self.screenshot()
+
         self.browser.quit()
+
+    def screenshot(self) -> None:
+
+        """Takes a screenshot and saves the file."""
+
+        self.browser.get_screenshot_as_file(self.ss_filepath)
+        print(f'Saved screenshot to: {self.ss_filepath}')
+
+    def _check_login(self) -> None:
+
+        """Checks if login was successful."""
+
+        try:
+            msg = self.browser.find_element_by_xpath('//div[@id="msg" and @class="errors"]')
+        except NoSuchElementException:
+            print('Logged in successfully.')
+        else:
+            raise LoginError(msg.text)
+
+    def _check_book_state(self) -> None:
+
+        """Checks if session has already been booked."""
+
+        try:
+            msg = self.browser.find_element_by_xpath('//*[@id="content"]/div/section/article/h3')
+        except NoSuchElementException:
+            pass
+        else:
+            if msg.text == 'You are already signed up for this event.':
+                raise AlreadyBookedError(msg.text)
+            if msg.text == 'Thank you, you have registered for this study space period.':
+                print('Booking Successful')
+
+    def _check_success(self) -> None:
+
+        """Checks if booking was successful."""
+
+        try:
+            msg = self.browser.find_element_by_xpath('//*[@id="content"]/div/section/article/h3')
+        except NoSuchElementException:
+            if self.ss_unknown_booking_error:
+                self.screenshot()
+            raise UnknownBookingError('Page was not as expected...')
+        else:
+            if msg.text == 'Thank you, you have registered for this study space period.':
+                print('Booking Successful')
