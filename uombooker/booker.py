@@ -48,6 +48,12 @@ class Booker:
 
         self.browser: Union[WebDriver, None] = None
 
+        self.today = datetime.datetime.today()
+        self.weekday = self.today.weekday()
+
+        self.am_cutoff = self.today.replace(hour=12, minute=30, second=0, microsecond=0)
+        self.pm_cutoff = self.today.replace(hour=16, minute=30, second=0, microsecond=0)
+
         self._check_datetime()
 
     def __del__(self) -> None:
@@ -102,11 +108,9 @@ class Booker:
             Saves screenshot of final page if True.
         """
 
+        session_idx = self._get_session_idx()
+
         booking_url: str = 'https://www.library.manchester.ac.uk/locations-and-opening-hours/study-spaces/booking/'
-
-        weekday = datetime.datetime.today().weekday()
-        session_idx = self.session - 2 * (weekday + 1)
-
         session_xpath: str = f'//*[@id="content"]/div/section/article/div[{self.location}]/table/tbody/tr[{session_idx}]/td[4]/a'
         confirm_xpath: str = '//*[@id="content"]/div/section/article/a'
         register_xpath: str = '//*[@id="register"]/div[5]/input'
@@ -227,13 +231,8 @@ class Booker:
         def afternoon_session(session: Session) -> bool:
             return session % 2 == 0
 
-        today = datetime.datetime.today()
-
-        morning_cutoff = today.replace(hour=12, minute=30, second=0, microsecond=0)
-        afternoon_cutoff = today.replace(hour=16, minute=30, second=0, microsecond=0)
-
         # check if session is not in the past
-        am_session, pm_session = ((today.weekday() + 1) * 2 + i for i in [-1, 0])
+        am_session, pm_session = ((self.weekday + 1) * 2 + i for i in [-1, 0])
 
         if self.session < am_session:
             raise SessionExpiredError('Must book for the current day / future.')
@@ -243,9 +242,30 @@ class Booker:
         # session must be today - check if valid booking
         valid = False
         if morning_session(self.session):
-            valid = today < morning_cutoff
+            valid = self.today < self.am_cutoff
         elif afternoon_session(self.session):
-            valid = today < afternoon_cutoff
+            valid = self.today < self.pm_cutoff
 
         if not valid:
             raise SessionExpiredError('Selected session has already closed.')
+
+    def _get_session_idx(self) -> int:
+
+        """Calculates session index based on current day.
+
+        Returns
+        -------
+        session_idx : int
+            Adjusted session index.
+        """
+
+        if self.weekday in [5, 6] or (self.weekday == 4 and self.today > self.pm_cutoff):
+            session_idx = self.session
+        else:
+            session_idx = self.session - 2 * (self.weekday + (self.today > self.pm_cutoff))
+
+        if session_idx <= 0:
+            raise SessionExpiredError('Selected session has already closed.')
+
+        return session_idx
+
