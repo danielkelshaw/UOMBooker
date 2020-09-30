@@ -10,7 +10,9 @@ from selenium.webdriver.chrome.webdriver import WebDriver
 from webdriver_manager.chrome import ChromeDriverManager
 
 from .utils import Location, Session
-from .utils.exceptions import AlreadyBookedError, LoginError, SessionExpiredError, UnknownBookingError
+from .utils.exceptions import (
+    AlreadyBookedError, LoginError, SessionExpiredError, UnknownBookingError
+)
 
 
 class Booker:
@@ -48,11 +50,16 @@ class Booker:
 
         self.browser: Union[WebDriver, None] = None
 
-        self.today = datetime.datetime.today()
-        self.weekday = self.today.weekday()
+        self.today: datetime.datetime = datetime.datetime.today()
+        self.weekday: int = self.today.weekday()
 
-        self.am_cutoff = self.today.replace(hour=12, minute=30, second=0, microsecond=0)
-        self.pm_cutoff = self.today.replace(hour=16, minute=30, second=0, microsecond=0)
+        self.am_cutoff: datetime.datetime = self.today.replace(
+            hour=12, minute=30, second=0, microsecond=0
+        )
+
+        self.pm_cutoff: datetime.datetime = self.today.replace(
+            hour=16, minute=30, second=0, microsecond=0
+        )
 
         self._check_datetime()
 
@@ -262,7 +269,9 @@ class Booker:
         if self.weekday in [5, 6] or (self.weekday == 4 and self.today > self.pm_cutoff):
             session_idx = self.session
         else:
-            session_idx = self.session - 2 * (self.weekday + (self.today > self.pm_cutoff))
+            after_am = self.today > self.am_cutoff
+            after_pm = self.today > self.pm_cutoff
+            session_idx = self.session - 2 * self.weekday - after_am - after_pm
 
         if session_idx <= 0:
             raise SessionExpiredError('Selected session has already closed.')
