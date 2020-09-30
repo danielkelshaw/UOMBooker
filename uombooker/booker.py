@@ -115,13 +115,6 @@ class Booker:
             Saves screenshot of final page if True.
         """
 
-        session_idx = self._get_session_idx()
-
-        booking_url: str = 'https://www.library.manchester.ac.uk/locations-and-opening-hours/study-spaces/booking/'
-        session_xpath: str = f'//*[@id="content"]/div/section/article/div[{self.location}]/table/tbody/tr[{session_idx}]/td[4]/a'
-        confirm_xpath: str = '//*[@id="content"]/div/section/article/a'
-        register_xpath: str = '//*[@id="register"]/div[5]/input'
-
         # start browser instance
         if not self.browser:
             self.set_browser()
@@ -130,8 +123,17 @@ class Booker:
         user_config = self.load_config()
 
         # navigate to webpage
+        booking_url: str = 'https://www.library.manchester.ac.uk/locations-and-opening-hours/study-spaces/booking/'
         self.browser.get(booking_url)
+
+        # get appropriate session index
+        session_idx = self._get_session_idx()
+
+        # navigate to session booking page
+        session_xpath: str = f'//*[@id="content"]/div/section/article/div[{self.location}]/table/tbody/tr[{session_idx}]/td[4]/a'
         self.browser.find_element_by_xpath(session_xpath).click()
+
+        confirm_xpath: str = '//*[@id="content"]/div/section/article/a'
         self.browser.find_element_by_xpath(confirm_xpath).click()
 
         # submit form
@@ -148,6 +150,7 @@ class Booker:
         self._check_book_state()
 
         # click on register button
+        register_xpath: str = '//*[@id="register"]/div[5]/input'
         self.browser.find_element_by_xpath(register_xpath).click()
 
         # check if booked successfully
@@ -201,6 +204,8 @@ class Booker:
                 raise AlreadyBookedError(msg.text)
             if msg.text == 'Thank you, you have registered for this study space period.':
                 print('Booking Successful')
+            if msg.text == 'Bookings for this study space period are now closed.':
+                raise SessionExpiredError(msg.text)
 
     def _check_success(self) -> None:
 
@@ -266,15 +271,15 @@ class Booker:
             Adjusted session index.
         """
 
-        if self.weekday in [5, 6] or (self.weekday == 4 and self.today > self.pm_cutoff):
-            session_idx = self.session
-        else:
-            after_am = self.today > self.am_cutoff
-            after_pm = self.today > self.pm_cutoff
-            session_idx = self.session - 2 * self.weekday - after_am - after_pm
+        events = set(
+            [len(event.find_elements_by_tag_name('tr'))
+             for event in self.browser.find_elements_by_class_name('event')]
+        )
 
-        if session_idx <= 0:
-            raise SessionExpiredError('Selected session has already closed.')
+        if len(events) > 1:
+            msg = 'Number of sessions is not consistent across locations.'
+            raise ValueError(msg)
+
+        session_idx = self.session - (10 - events.pop())
 
         return session_idx
-
