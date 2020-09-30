@@ -3,6 +3,6 @@ import enum
 
 class Location(enum.IntEnum):
 
-    JOULE: int = 1
-    MAIN: int= 2
-    AGLC: int = 3
+    AGLC: int = 1
+    JOULE: int = 2
+    MAIN: int = 3
